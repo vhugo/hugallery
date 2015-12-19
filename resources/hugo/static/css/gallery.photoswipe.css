@@ -1,0 +1,19 @@
+.my-gallery {
+  width: 100%;
+  float: left;
+  margin-bottom:30px;
+}
+.my-gallery img {
+  width: 100%;
+  height: auto;
+}
+.my-gallery figure {
+  display: block;
+  float: left;
+  margin: 0;
+  width: 164px;
+  height: 164px;
+}
+.my-gallery figcaption {
+  display: none;
+}

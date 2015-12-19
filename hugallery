@@ -1,0 +1,377 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import re
+import errno
+import argparse
+import json
+import csv
+
+from wand.image import Image
+
+class Photo:
+	order = 0
+	title = ""
+	description = ""
+	album = ""
+	album_name = ""
+	album_path = ""
+	thumbnail_filename = ""
+	thumbnail_size = ""
+	small_filename = ""
+	small_size = ""
+	medium_filename = ""
+	medium_size = ""
+	original_filename = ""
+	original_size = ""
+
+	def __init__(self, d):
+		for k, v in d.iteritems():
+			if k == 'order':
+				self.order = int(v)
+
+			elif k == 'filename':
+				s = re.match('^(.*)(\.jpe?g)$', v)
+				self.original_filename = v
+				self.thumbnail_filename = "{0}-thumb{1}".format(s.group(1),s.group(2))
+				self.small_filename = "{0}-small{1}".format(s.group(1),s.group(2))
+				self.medium_filename = "{0}-medium{1}".format(s.group(1),s.group(2))
+
+			else:
+				self.__dict__[k] = v
+
+	def __repr__(self):
+		return repr((self.order, self.filename))
+
+	def set_size(self, measure, label):
+
+		if label == "thumbnail":
+			self.thumbnail_size = measure
+
+		elif label == "small":
+			self.small_size = measure
+
+		elif label == "medium":
+			self.medium_size = measure
+
+		elif label == "original":
+			self.original_size = measure
+
+	def set_album(self, album_slug, album_name, album_path):
+		self.album = album_slug
+		self.album_name = album_name
+		self.album_path = album_path
+
+	def get_dataset(self):
+		dset = [];
+		for key, data in sorted(self.__dict__.iteritems()):
+			dset.append("{0}: {1}".format(key, data))
+
+		return "\n".join(dset)
+
+
+class Album:
+
+	album_dir = ""
+	album_name = ""
+	album_name_slug = ""
+	hugo_location = ""
+	parent_path = ""
+	max_thumbnail_size = 200
+	max_small_size = 600
+	max_medium_size = 900
+ 	photos = []
+ 	gallery_dataset = ""
+
+	def __init__(self, album_dir):
+		self.album_dir = album_dir
+
+	def get_photos_filename(self):
+
+		if not self.album_dir:
+			self.album_dir = '.'
+
+		photo_list = []
+		for filename in os.listdir(self.album_dir):
+			if re.search("\.jpe?g$", filename, re.I):
+				photo_list.append(filename)
+
+		return photo_list
+
+	def load_config(self):
+
+		album_conf_file = os.path.join(self.album_dir, 'album.json')
+		photos_conf_file = os.path.join(self.album_dir, 'photos.csv')
+
+		## Load ALBUM configuration
+		if os.path.isfile(album_conf_file):
+
+			with open(album_conf_file) as data:
+
+				try:
+					config = json.load(data)
+
+				except ValueError:
+					sys.stderr.write(
+						"ERROR: Configuration file for album is incorrect. "
+						"Please check and try again. "
+						"\n"
+					)
+					sys.exit(1)
+
+				for k, v in config.iteritems():
+					self.__dict__[k] = v
+
+		else: # If no config file is found this will create an example one
+			album_conf_template = {
+				'hugo_location': '/you/gallery/directory/',
+				'album_name': 'Your Album Name',
+				'parent_path': '',
+				'max_thumbnail_size': 200,
+				'max_small_size' : 600,
+				'max_medium_size' : 900,
+			}
+
+			with open(album_conf_file, 'w') as conf:
+				conf.write(
+					json.dumps(album_conf_template,
+						indent=4, separators=(',', ': '), sort_keys=True)
+				)
+
+		## Load PHOTOS configuration
+		if os.path.isfile(photos_conf_file):
+
+			with open(photos_conf_file,'rU') as csvfile:
+				config = csv.DictReader(csvfile)
+				for p in config:
+					self.photos.append(Photo(p))
+
+				self.photos.sort(key=lambda p: p.order)
+
+		else: # If no config file is found this will create an example one
+
+			photo_prop = ['order', 'title', 'description', 'filename']
+
+			with open(photos_conf_file, 'w') as csvfile:
+				writer = csv.DictWriter(csvfile, fieldnames=photo_prop)
+				writer.writeheader()
+
+				photos = self.get_photos_filename()
+				for order, filename in enumerate(photos):
+					writer.writerow({
+						'order': order,
+						'filename': filename
+					})
+
+		self.check_config()
+		self.normalization()
+
+	def check_config(self):
+
+		if not self.hugo_location \
+			or not os.path.exists(self.hugo_location):
+			sys.stderr.write(
+				"Gallery was not set up properly, in the configuration file \n"
+				"album.conf, please add hugo_location.\n"
+			)
+			sys.exit(1)
+
+	def normalization(self):
+		self.album_name_slug = re.sub('[^\w\s-]', '', self.album_name, flags=re.U).strip().lower()
+		self.album_name_slug = re.sub('\s', '_', self.album_name, flags=re.U).strip().lower()
+
+	def prepare_photos(self):
+
+		self.static_images = os.path.join(
+			self.hugo_location,
+			'static/gallery/{0}/'.format(self.album_name_slug)
+		)
+
+		# Create directory if not existing
+		if not os.path.exists(self.static_images):
+			try:
+				os.makedirs(self.static_images)
+			except OSError as exc: # Python >2.5
+				if exc.errno == errno.EEXIST and os.path.isdir(self.static_images):
+					pass
+
+		# Create the dataset
+		self.gallery_dataset = os.path.join(
+			self.hugo_location,
+			'data/gallery/'
+		)
+
+		if not os.path.exists(self.gallery_dataset):
+			try:
+				os.makedirs(self.gallery_dataset)
+			except OSError as exc: # Python >2.5
+				if exc.errno == errno.EEXIST and os.path.isdir(self.gallery_dataset):
+					pass
+
+		for photo in self.photos:
+
+			photo_filename = os.path.join(
+				self.album_dir, "{0}".format(photo.original_filename))
+
+			photo.set_album(
+				self.album_name_slug,
+				self.album_name,
+				'/gallery/{0}'.format(self.album_name_slug)
+			)
+
+			with Image(filename=photo_filename) as img:
+
+				#thumbnail
+				with img.clone() as i:
+
+					filename_thumbnail = os.path.join(
+						self.static_images,
+						"{0}".format(photo.thumbnail_filename)
+					)
+
+					if (img.height < img.width):
+						height = self.max_thumbnail_size
+						width = self.max_thumbnail_size * img.width / img.height
+					else:
+						width = self.max_thumbnail_size
+						height = self.max_thumbnail_size * img.height / img.width
+
+					i.resize( width, height )
+					i.crop(
+						width=self.max_thumbnail_size,
+						height=self.max_thumbnail_size) # Perfect crop ;-)
+					i.save(filename=filename_thumbnail)
+					photo.set_size("{0}x{1}".format(width, height), 'thumbnail')
+
+				#small
+				with img.clone() as i:
+
+					filename_small = os.path.join(
+						self.static_images,
+						"{0}".format(photo.small_filename)
+					)
+
+					if (img.height > img.width):
+						height = self.max_small_size
+						width = self.max_small_size * img.width / img.height
+					else:
+						width = self.max_small_size
+						height = self.max_small_size * img.height / img.width
+
+					i.resize( width, height )
+					i.save(filename=filename_small)
+					photo.set_size("{0}x{1}".format(width, height), 'small')
+
+				#medium
+				with img.clone() as i:
+
+					filename_medium = os.path.join(
+						self.static_images,
+						"{0}".format(photo.medium_filename)
+					)
+
+					if (img.height > img.width):
+						height = self.max_medium_size
+						width = self.max_medium_size * img.width / img.height
+					else:
+						width = self.max_medium_size
+						height = self.max_medium_size * img.height / img.width
+
+					i.resize( width, height )
+					i.save(filename=filename_medium)
+					photo.set_size("{0}x{1}".format(width, height), 'medium')
+
+				#original
+				with img.clone() as i:
+
+					filename_original = os.path.join(
+						self.static_images,
+						"{0}".format(photo.original_filename)
+					)
+
+					i.save(filename=filename_original)
+					photo.set_size("{0}x{1}".format(i.width, i.height), 'original')
+
+			filename_dataset = os.path.join(
+				self.gallery_dataset,
+				"{0}-{1:0>3}.yaml".format(self.album_name_slug, photo.order)
+			)
+
+			# Create dataset files
+			with open(filename_dataset, 'w') as conf:
+				conf.write(photo.get_dataset())
+
+	def copy_resources(self):
+
+		import shutil
+
+		resources = [
+			{
+				"hugo_dir": os.path.join(self.hugo_location, 'layouts/gallery'),
+				"hgal_dir": os.path.join( os.path.dirname(
+					os.path.realpath(__file__)),
+					'resources/hugo/layouts/gallery'
+				)
+			},
+			{
+				"hugo_dir": os.path.join(self.hugo_location, 'layouts/section'),
+				"hgal_dir": os.path.join( os.path.dirname(
+					os.path.realpath(__file__)),
+					'resources/hugo/layouts/section'
+				)
+			},
+			{
+				"hugo_dir": os.path.join(self.hugo_location, 'static/css'),
+				"hgal_dir": os.path.join( os.path.dirname(
+					os.path.realpath(__file__)),
+					'resources/hugo/static/css'
+				)
+			},
+			{
+				"hugo_dir": os.path.join(self.hugo_location, 'static/js'),
+				"hgal_dir": os.path.join( os.path.dirname(
+					os.path.realpath(__file__)),
+					'resources/	hugo/static/js'
+				)
+			}
+		]
+
+		for r in resources:
+			try:
+				shutil.copytree(r["hgal_dir"], r["hugo_dir"])
+
+			except OSError as exc:
+
+				if exc.errno == errno.EEXIST :
+					for filename in os.listdir(r["hgal_dir"]):
+						shutil.copyfile(
+							os.path.join(r["hgal_dir"], filename),
+							os.path.join(r["hugo_dir"], filename)
+						)
+
+		#
+
+def main():
+
+	parser = argparse.ArgumentParser(
+		description='Generate a Static Web Photo Gallery for Hugo (http://gohugo.io/)',
+		prog='hugallery',
+		usage='usage: %(prog)s [options]'
+	)
+	parser.add_argument(
+		'album_dir',
+		nargs='?',
+		help='Diretory with all photos to be used in the gallery album.'
+	)
+	args = parser.parse_args()
+
+	from pkg_resources import resource_string
+	print resource_string(__name__, 'resources/hugo/static/js')
+	# album = Album(args.album_dir)
+	# album.load_config()
+	# album.prepare_photos()
+	# album.copy_resources()
+
+if __name__ == '__main__':
+	main()
