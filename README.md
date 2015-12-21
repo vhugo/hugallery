@@ -1,4 +1,4 @@
 Hugallery
 ==========
 
-This is a script to generate a static photo gallery with PhotoSwipe for Hugo.
+A command line script to generate static photos gallery with [PhotoSwipe](http://photoswipe.com/) for [Hugo](http://gohugo.io/)
