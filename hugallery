@@ -9,6 +9,9 @@ import json
 import csv
 
 from wand.image import Image
+from textwrap import dedent
+from string import Template
+from datetime import datetime
 
 class Photo:
 	order = 0
@@ -61,7 +64,7 @@ class Photo:
 	def set_album(self, album_slug, album_name, album_path):
 		self.album = album_slug
 		self.album_name = album_name
-		self.album_path = album_path
+		self.album_path = "{0}/".format(album_path)
 
 	def get_dataset(self):
 		dset = [];
@@ -78,7 +81,7 @@ class Album:
 	album_name_slug = ""
 	hugo_location = ""
 	parent_path = ""
-	max_thumbnail_size = 200
+	max_thumbnail_size = 164
 	max_small_size = 600
 	max_medium_size = 900
  	photos = []
@@ -115,7 +118,7 @@ class Album:
 				except ValueError:
 					sys.stderr.write(
 						"ERROR: Configuration file for album is incorrect. "
-						"Please check and try again. "
+						"Please check and try again."
 						"\n"
 					)
 					sys.exit(1)
@@ -123,12 +126,12 @@ class Album:
 				for k, v in config.iteritems():
 					self.__dict__[k] = v
 
+
 		else: # If no config file is found this will create an example one
 			album_conf_template = {
-				'hugo_location': '/you/gallery/directory/',
+				'hugo_location': '/your/hugo/site/directory/',
 				'album_name': 'Your Album Name',
-				'parent_path': '',
-				'max_thumbnail_size': 200,
+				'max_thumbnail_size': 164,
 				'max_small_size' : 600,
 				'max_medium_size' : 900,
 			}
@@ -302,55 +305,462 @@ class Album:
 			with open(filename_dataset, 'w') as conf:
 				conf.write(photo.get_dataset())
 
-	def copy_resources(self):
+	def add_layouts(self):
+		head = '''\
+			{{/* HUGALLERY: Replace the lines bellow with your theme's header layout */}}
+			<!DOCTYPE html>
+			<html lang="en-US">
+			<head>
+				<meta charset="utf-8">
+				<meta http-equiv="X-UA-Compatible" content="chrome=1">
+				<meta name="HandheldFriendly" content="True">
+				<meta name="MobileOptimized" content="320">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+				<base href="{{ .Site.BaseURL }}">
+				<title> {{ .Title }} &middot; {{ .Site.Title }} </title>
+				<link rel="canonical" href="{{ .Permalink }}">
+				<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">
+				<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.0/default-skin/default-skin.min.css">
+				<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.0/photoswipe.min.css">
+				<link rel="stylesheet" href="{{ .Site.BaseURL }}css/gallery.photoswipe.css">
+			</head>
+			<body lang="en">
+			{{/* HUGALLERY: Replace the lines above with your theme's header layout */}}
+		'''
 
-		import shutil
+		foot = '''
+			{{/* HUGALLERY: Replace the lines bellow with your theme's footer layout */}}
 
-		resources = [
-			{
-				"hugo_dir": os.path.join(self.hugo_location, 'layouts/gallery'),
-				"hgal_dir": os.path.join( os.path.dirname(
-					os.path.realpath(__file__)),
-					'resources/hugo/layouts/gallery'
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.0/photoswipe.min.js"></script>
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.0/photoswipe-ui-default.min.js"></script>
+			<script src="{{ .Site.BaseURL }}js/gallery.photoswipe.js"></script>
+
+			</body>
+			</html>
+			{{/* HUGALLERY: Replace the lines above with your theme's footer layout */}}
+		'''
+
+		section_gallery = '''$head
+			<div class="section main">
+				<div class="container">
+					<div class="content">
+						<div class="page-heading">Gallery</div>
+						<ul>
+						{{ range .Site.Data.gallery }}{{ if eq .order 1 }}<li class="my-gallery-albums"><a href="{{.album_path}}"><img src="gallery/{{.album}}/{{.thumbnail_filename}}" alt="{{.description}}" /><br />{{.album_name}}</a></li>{{ end }}{{ end }}
+						</ul>
+					</div>
+				</div>
+			</div>
+		$foot'''
+
+		hugo_layout_section = os.path.join(self.hugo_location, 'layouts/section')
+		if not os.path.exists(hugo_layout_section):
+			os.makedirs(hugo_layout_section)
+
+		section_gallery_filename = os.path.join(hugo_layout_section, 'gallery.html')
+		if not os.path.isfile(section_gallery_filename):
+			with open(section_gallery_filename, 'w') as layout:
+				layout.write(
+					dedent(
+						Template(section_gallery).safe_substitute(
+							head=head, foot=foot)
+					)
 				)
-			},
-			{
-				"hugo_dir": os.path.join(self.hugo_location, 'layouts/section'),
-				"hgal_dir": os.path.join( os.path.dirname(
-					os.path.realpath(__file__)),
-					'resources/hugo/layouts/section'
+
+		gallery_single = '''$head
+			<div class="section main post">
+				<div class="container">
+					<div class="content">
+						<div class="front-matter">
+							<div class="title-container">
+								<div class="page-heading">
+									<a href="{{ .Permalink }}">{{ .Title }}</a>
+								</div>
+							</div>
+						</div>
+						<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+
+						{{ $album_path := .RelPermalink }}
+						{{ range .Site.Data.gallery }}
+							{{ if eq .album_path $album_path }}
+								<figure itemprop="associatedMedia" itemscope itemtype="http://schema.org/ImageObject">
+									<a href="gallery/{{.album}}/{{.medium_filename}}" itemprop="contentUrl" data-size="{{.medium_size}}" data-med="gallery/{{.album}}/{{.small_filename}}" data-med-size="{{.small_size}}">
+										<img src="gallery/{{.album}}/{{.thumbnail_filename}}" itemprop="thumbnail" alt="{{.description}}" />
+									</a>
+									<figcaption itemprop="caption description">{{.title}}</figcaption>
+								</figure>
+							{{ end }}
+						{{ end }}
+
+						</div>
+						<br />
+						<p><a href="/gallery/">Back to gallery</a></p>
+					</div>
+				</div>
+			</div>
+
+			<!-- Root element of PhotoSwipe. Must have class pswp. -->
+			<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+				<!-- Background of PhotoSwipe.
+						 It's a separate element, as animating opacity is faster than rgba(). -->
+				<div class="pswp__bg"></div>
+
+				<!-- Slides wrapper with overflow:hidden. -->
+				<div class="pswp__scroll-wrap">
+
+					<!-- Container that holds slides. PhotoSwipe keeps only 3 slides in DOM to save memory. -->
+					<!-- don't modify these 3 pswp__item elements, data is added later on. -->
+					<div class="pswp__container">
+							<div class="pswp__item"></div>
+							<div class="pswp__item"></div>
+							<div class="pswp__item"></div>
+					</div>
+					<!-- Default (PhotoSwipeUI_Default) interface on top of sliding area. Can be changed. -->
+					<div class="pswp__ui pswp__ui--hidden">
+
+						<div class="pswp__top-bar">
+
+							<!--  Controls are self-explanatory. Order can be changed. -->
+							<div class="pswp__counter"></div>
+
+							<button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+							<button class="pswp__button pswp__button--share" title="Share"></button>
+
+							<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+							<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+							<!-- Preloader demo http://codepen.io/dimsemenov/pen/yyBWoR -->
+							<!-- element will get class pswp__preloader--active when preloader is running -->
+							<div class="pswp__preloader">
+								<div class="pswp__preloader__icn">
+									<div class="pswp__preloader__cut">
+										<div class="pswp__preloader__donut"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+								<div class="pswp__share-tooltip"></div>
+						</div>
+
+						<button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+						</button>
+
+						<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+						</button>
+
+						<div class="pswp__caption">
+								<div class="pswp__caption__center"></div>
+						</div>
+
+					</div>
+
+				</div>
+
+			</div>
+		$foot'''
+
+		hugo_layout_gallery = os.path.join(self.hugo_location, 'layouts/gallery')
+		if not os.path.exists(hugo_layout_gallery):
+			os.makedirs(hugo_layout_gallery)
+
+		gallery_single_filename = os.path.join(hugo_layout_gallery, 'single.html')
+		if not os.path.isfile(gallery_single_filename):
+			with open(gallery_single_filename, 'w') as layout:
+				layout.write(
+					dedent(
+						Template(gallery_single).safe_substitute(
+							head=head, foot=foot)
+					)
 				)
-			},
-			{
-				"hugo_dir": os.path.join(self.hugo_location, 'static/css'),
-				"hgal_dir": os.path.join( os.path.dirname(
-					os.path.realpath(__file__)),
-					'resources/hugo/static/css'
-				)
-			},
-			{
-				"hugo_dir": os.path.join(self.hugo_location, 'static/js'),
-				"hgal_dir": os.path.join( os.path.dirname(
-					os.path.realpath(__file__)),
-					'resources/	hugo/static/js'
-				)
+
+	def add_statics(self):
+
+		css = '''\
+			.my-gallery {
+				width: 100%;
+				float: left;
+				margin-bottom:30px;
 			}
-		]
+			.my-gallery img {
+				width: 100%;
+				height: auto;
+			}
+			.my-gallery li, .my-gallery figure {
+				display: block;
+				float: left;
+				margin: 0;
+				width: 164px;
+				height: 164px;
+			}
+			.my-gallery figcaption {
+				display: none;
+			}
+		'''
 
-		for r in resources:
-			try:
-				shutil.copytree(r["hgal_dir"], r["hugo_dir"])
+		hugo_css = os.path.join(self.hugo_location, 'static/css')
+		if not os.path.exists(hugo_css):
+			os.makedirs(hugo_css)
 
-			except OSError as exc:
+		with open(os.path.join(hugo_css, 'gallery.photoswipe.css'), 'w') as static:
+			static.write(dedent(css))
 
-				if exc.errno == errno.EEXIST :
-					for filename in os.listdir(r["hgal_dir"]):
-						shutil.copyfile(
-							os.path.join(r["hgal_dir"], filename),
-							os.path.join(r["hugo_dir"], filename)
-						)
+		js = '''\
+			var initPhotoSwipeFromDOM = function(gallerySelector) {
 
-		#
+				var parseThumbnailElements = function(el) {
+					var thumbElements = el.childNodes,
+						numNodes = thumbElements.length,
+						items = [],
+						el,
+						childElements,
+						thumbnailEl,
+						size,
+						item;
+
+					for(var i = 0; i < numNodes; i++) {
+						el = thumbElements[i];
+
+						// include only element nodes
+						if(el.nodeType !== 1) {
+							continue;
+						}
+
+						linkEl = el.children[0]; // <a> element
+						childElements = linkEl.children;
+
+						size = linkEl.getAttribute('data-size').split('x');
+
+						// create slide object
+						item = {
+							src: linkEl.getAttribute('href'),
+							w: parseInt(size[0], 10),
+							h: parseInt(size[1], 10),
+							author: linkEl.getAttribute('data-author')
+						};
+
+						item.el = el; // save link to element for getThumbBoundsFn
+
+						if(childElements.length > 0) {
+							item.msrc = childElements[0].getAttribute('src'); // thumbnail url
+							if(childElements.length > 1) {
+								item.title = childElements[1].innerHTML; // caption (contents of figure)
+							}
+						}
+
+
+						var mediumSrc = linkEl.getAttribute('data-med');
+						if(mediumSrc) {
+							size = linkEl.getAttribute('data-med-size').split('x');
+							// "medium-sized" image
+							item.m = {
+								src: mediumSrc,
+								w: parseInt(size[0], 10),
+								h: parseInt(size[1], 10)
+							};
+						}
+						// original image
+						item.o = {
+							src: item.src,
+							w: item.w,
+							h: item.h
+						};
+
+						items.push(item);
+					}
+
+					return items;
+				};
+
+				// find nearest parent element
+				var closest = function closest(el, fn) {
+					return el && ( fn(el) ? el : closest(el.parentNode, fn) );
+				};
+
+				var onThumbnailsClick = function(e) {
+					e = e || window.event;
+					e.preventDefault ? e.preventDefault() : e.returnValue = false;
+
+					var eTarget = e.target || e.srcElement;
+
+					var clickedListItem = closest(eTarget, function(el) {
+						return (el.tagName && el.tagName.toUpperCase() === 'FIGURE');
+					});
+
+					if(!clickedListItem) {
+						return;
+					}
+
+					var clickedGallery = clickedListItem.parentNode;
+
+					var childNodes = clickedListItem.parentNode.childNodes,
+						numChildNodes = childNodes.length,
+						nodeIndex = 0,
+						index;
+
+					for (var i = 0; i < numChildNodes; i++) {
+						if(childNodes[i].nodeType !== 1) {
+							continue;
+						}
+
+						if(childNodes[i] === clickedListItem) {
+							index = nodeIndex;
+							break;
+						}
+						nodeIndex++;
+					}
+
+					if(index >= 0) {
+						openPhotoSwipe( index, clickedGallery, true );
+					}
+					return false;
+				};
+
+				var photoswipeParseHash = function() {
+					var hash = window.location.hash.substring(1),
+					params = {};
+
+					if(hash.length < 5) {
+						return params;
+					}
+
+					var vars = hash.split('&');
+					for (var i = 0; i < vars.length; i++) {
+						if(!vars[i]) {
+							continue;
+						}
+						var pair = vars[i].split('=');
+						if(pair.length < 2) {
+							continue;
+						}
+						params[pair[0]] = pair[1];
+					}
+
+					if(params.gid) {
+						params.gid = parseInt(params.gid, 10);
+					}
+
+					return params;
+				};
+
+				var openPhotoSwipe = function(index, galleryElement, disableAnimation, fromURL) {
+					var pswpElement = document.querySelectorAll('.pswp')[0],
+						gallery,
+						options,
+						items;
+
+					items = parseThumbnailElements(galleryElement);
+
+					// define options (if needed)
+					options = {
+
+						galleryUID: galleryElement.getAttribute('data-pswp-uid'),
+
+						getThumbBoundsFn: function(index) {
+							// See Options -> getThumbBoundsFn section of documentation for more info
+							var thumbnail = items[index].el.getElementsByTagName('img')[0], // find thumbnail
+								pageYScroll = window.pageYOffset || document.documentElement.scrollTop,
+								rect = thumbnail.getBoundingClientRect();
+
+							return {x:rect.left, y:rect.top + pageYScroll, w:rect.width};
+						},
+
+						addCaptionHTMLFn: function(item, captionEl, isFake) {
+							if(!item.title) {
+								captionEl.children[0].innerText = '';
+								return false;
+							}
+							captionEl.children[0].innerHTML = item.title;
+							return true;
+						}
+					};
+
+					// PhotoSwipe opened from URL
+					if(fromURL) {
+						if(options.galleryPIDs) {
+							// parse real index when custom PIDs are used
+							// http://photoswipe.com/documentation/faq.html#custom-pid-in-url
+							for(var j = 0; j < items.length; j++) {
+								if(items[j].pid == index) {
+									options.index = j;
+									break;
+								}
+							}
+						} else {
+							// in URL indexes start from 1
+							options.index = parseInt(index, 10) - 1;
+						}
+					} else {
+						options.index = parseInt(index, 10);
+					}
+
+					// exit if index not found
+					if( isNaN(options.index) ) {
+						return;
+					}
+
+					if(disableAnimation) {
+						options.showAnimationDuration = 0;
+						options.hideAnimationDuration = 0;
+					}
+
+					// Pass data to PhotoSwipe and initialize it
+					gallery = new PhotoSwipe( pswpElement, PhotoSwipeUI_Default, items, options);
+					gallery.init();
+				};
+
+				// loop through all gallery elements and bind events
+				var galleryElements = document.querySelectorAll( gallerySelector );
+
+				for(var i = 0, l = galleryElements.length; i < l; i++) {
+					galleryElements[i].setAttribute('data-pswp-uid', i+1);
+					galleryElements[i].onclick = onThumbnailsClick;
+				}
+
+				// Parse URL and open gallery if it contains #&pid=3&gid=1
+				var hashData = photoswipeParseHash();
+				if(hashData.pid && hashData.gid) {
+					openPhotoSwipe( hashData.pid ,  galleryElements[ hashData.gid - 1 ], true, true );
+				}
+			};
+
+			// execute above function
+			initPhotoSwipeFromDOM('.my-gallery');
+		'''
+
+		hugo_js = os.path.join(self.hugo_location, 'static/js')
+		if not os.path.exists(hugo_js):
+			os.makedirs(hugo_js)
+
+		with open(os.path.join(hugo_js, 'gallery.photoswipe.js'), 'w') as static:
+			static.write(dedent(js))
+
+	def add_content(self):
+		content = '''\
+			+++
+			date = "{0}"
+			draft = true
+			title = "{1}"
+
+			+++
+
+		'''.format(datetime.now().isoformat(), self.album_name)
+
+		hugo_content = os.path.join(self.hugo_location, 'content/gallery')
+		if not os.path.exists(hugo_content):
+			os.makedirs(hugo_content)
+
+		with open(os.path.join(hugo_content, '{0}.md'.format(self.album_name_slug)), 'w') as c:
+			c.write(dedent(content))
+
+	def add_resources(self):
+		self.add_layouts()
+		self.add_statics()
+		self.add_content()
 
 def main():
 
@@ -366,12 +776,10 @@ def main():
 	)
 	args = parser.parse_args()
 
-	from pkg_resources import resource_string
-	print resource_string(__name__, 'resources/hugo/static/js')
-	# album = Album(args.album_dir)
-	# album.load_config()
-	# album.prepare_photos()
-	# album.copy_resources()
+	album = Album(args.album_dir)
+	album.load_config()
+	album.prepare_photos()
+	album.add_resources()
 
 if __name__ == '__main__':
 	main()
