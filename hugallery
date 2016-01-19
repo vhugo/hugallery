@@ -13,6 +13,40 @@ from textwrap import dedent
 from string import Template
 from datetime import datetime
 
+class ShowMessageAs:
+	HEADER = '\033[95m'
+	OKBLUE = '\033[94m'
+	OKGREEN = '\033[92m'
+	WARNING = '\033[93m'
+	FAIL = '\033[91m'
+	ENDC = '\033[0m'
+	BOLD = '\033[1m'
+	UNDERLINE = '\033[4m'
+
+	@classmethod
+	def clean(self, m):
+		m = re.sub(r'[\n\r\s]{2,}', ' ', m, re.M)
+		m = re.sub(
+			r'\*\*([^\*]+)\*\*',
+			r'{0}\1{1}'.format(self.BOLD, self.ENDC),
+			m
+		)
+		return m
+
+	@classmethod
+	def error(self, m):
+		sys.stderr.write(''.join([
+			self.FAIL, self.BOLD, "ERROR: ", self.ENDC,
+			dedent(self.clean(m)), self.ENDC, "\n"
+		]))
+
+	@classmethod
+	def warning(self, m):
+		sys.stderr.write(''.join([
+			self.WARNING, self.BOLD, "WARNING: ", self.ENDC,
+			dedent(self.clean(m)), self.ENDC, "\n"
+		]))
+
 class Photo:
 	order = 0
 	title = ""
@@ -73,7 +107,6 @@ class Photo:
 
 		return "\n".join(dset)
 
-
 class Album:
 
 	album_dir = ""
@@ -116,11 +149,10 @@ class Album:
 					config = json.load(data)
 
 				except ValueError:
-					sys.stderr.write(
-						"ERROR: Configuration file for album is incorrect. "
-						"Please check and try again."
-						"\n"
-					)
+					ShowMessageAs.error("""
+						Configuration file for album is incorrect.
+						Please check and try again.
+					""")
 					sys.exit(1)
 
 				for k, v in config.iteritems():
@@ -141,6 +173,11 @@ class Album:
 					json.dumps(album_conf_template,
 						indent=4, separators=(',', ': '), sort_keys=True)
 				)
+
+			ShowMessageAs.warning("""
+				Couldn't find **album's** configuration file, a brand new has been created one.
+				Please edit **{0}**
+			""".format(album_conf_file))
 
 		## Load PHOTOS configuration
 		if os.path.isfile(photos_conf_file):
@@ -167,6 +204,12 @@ class Album:
 						'filename': filename
 					})
 
+			ShowMessageAs.warning("""
+				Couldn't find **photo's** meta data file, a brand new has been created one.
+				Please edit **{0}**
+			""".format(photos_conf_file))
+
+
 		self.check_config()
 		self.normalization()
 
@@ -174,10 +217,10 @@ class Album:
 
 		if not self.hugo_location \
 			or not os.path.exists(self.hugo_location):
-			sys.stderr.write(
-				"Gallery was not set up properly, in the configuration file \n"
-				"album.conf, please add hugo_location.\n"
-			)
+			ShowMessageAs.error("""
+				Your Hugo site location is incorrect, please update
+				**hugo_location** in the **album.conf**.
+			""")
 			sys.exit(1)
 
 	def normalization(self):
@@ -767,7 +810,7 @@ def main():
 	parser = argparse.ArgumentParser(
 		description='Generate a Static Web Photo Gallery for Hugo (http://gohugo.io/)',
 		prog='hugallery',
-		usage='usage: %(prog)s [options]'
+		usage='usage: %(prog)s /You-Album-Path/'
 	)
 	parser.add_argument(
 		'album_dir',
