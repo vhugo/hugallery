@@ -124,8 +124,11 @@ class Album:
  	gallery_dataset = ""
  	album_cover = None
 
-	def __init__(self, album_dir):
+	def __init__(self, album_dir, reprocess):
 		self.album_dir = album_dir
+
+		if reprocess:
+			self.remove_photos_csv()
 
 	def get_photos_filename(self):
 
@@ -138,6 +141,10 @@ class Album:
 				photo_list.append(filename)
 
 		return photo_list
+
+	def remove_photos_csv(self):
+		photos_csv = os.path.join(self.album_dir, 'photos.csv')
+		os.remove(photos_csv)
 
 	def load_config(self):
 
@@ -181,9 +188,10 @@ class Album:
 				)
 
 			ShowMessageAs.warning("""
-				Couldn't find **album's** configuration file, a brand new has been created one.
+				A brand new configuration file for **album** has been created one.
 				Please edit **{0}**
 			""".format(album_conf_file))
+			sys.exit()
 
 		## Load PHOTOS configuration
 		if os.path.isfile(photos_conf_file):
@@ -223,10 +231,10 @@ class Album:
 					})
 
 			ShowMessageAs.warning("""
-				Couldn't find **photo's** meta data file, a brand new has been created one.
+				A brand new configuration file for **photos** has been created one.\n
 				Please edit **{0}**
 			""".format(photos_conf_file))
-
+			sys.exit()
 
 		self.check_config()
 		self.normalization()
@@ -415,11 +423,17 @@ class Album:
 			</div>
 		$foot'''
 
-		hugo_layout_section = os.path.join(self.hugo_location, 'layouts/section')
+		hugo_layout_section = os.path.join(
+			self.hugo_location,
+			'layouts/section'
+		)
 		if not os.path.exists(hugo_layout_section):
 			os.makedirs(hugo_layout_section)
 
-		section_gallery_filename = os.path.join(hugo_layout_section, 'gallery.html')
+		section_gallery_filename = os.path.join(
+			hugo_layout_section,
+			'gallery.html'
+		)
 		if not os.path.isfile(section_gallery_filename):
 			with open(section_gallery_filename, 'w') as layout:
 				layout.write(
@@ -526,11 +540,17 @@ class Album:
 			</div>
 		$foot'''
 
-		hugo_layout_gallery = os.path.join(self.hugo_location, 'layouts/gallery')
+		hugo_layout_gallery = os.path.join(
+			self.hugo_location,
+			'layouts/gallery'
+		)
 		if not os.path.exists(hugo_layout_gallery):
 			os.makedirs(hugo_layout_gallery)
 
-		gallery_single_filename = os.path.join(hugo_layout_gallery, 'single.html')
+		gallery_single_filename = os.path.join(
+			hugo_layout_gallery,
+			'single.html'
+		)
 		if not os.path.isfile(gallery_single_filename):
 			with open(gallery_single_filename, 'w') as layout:
 				layout.write(
@@ -568,8 +588,10 @@ class Album:
 		if not os.path.exists(hugo_css):
 			os.makedirs(hugo_css)
 
-		with open(os.path.join(hugo_css, 'gallery.photoswipe.css'), 'w') as static:
-			static.write(dedent(css))
+		hugo_css_filename = os.path.join(hugo_css, 'gallery.photoswipe.css')
+		if not os.path.isfile(hugo_css_filename):
+			with open(hugo_css_filename, 'w') as static:
+				static.write(dedent(css))
 
 		js = '''\
 			var initPhotoSwipeFromDOM = function(gallerySelector) {
@@ -798,8 +820,10 @@ class Album:
 		if not os.path.exists(hugo_js):
 			os.makedirs(hugo_js)
 
-		with open(os.path.join(hugo_js, 'gallery.photoswipe.js'), 'w') as static:
-			static.write(dedent(js))
+		hugo_js_filename = os.path.join(hugo_js, 'gallery.photoswipe.js')
+		if not os.path.isfile(hugo_js_filename):
+			with open(hugo_js_filename, 'w') as static:
+				static.write(dedent(js))
 
 	def add_content(self):
 		content = '''\
@@ -816,8 +840,13 @@ class Album:
 		if not os.path.exists(hugo_content):
 			os.makedirs(hugo_content)
 
-		with open(os.path.join(hugo_content, '{0}.md'.format(self.album_name_slug)), 'w') as c:
-			c.write(dedent(content))
+		hugo_content_filename = os.path.join(
+			hugo_content,
+			'{0}.md'.format(self.album_name_slug)
+		)
+		if not os.path.isfile(hugo_content_filename):
+			with open(hugo_content_filename, 'w') as c:
+				c.write(dedent(content))
 
 	def add_resources(self):
 		self.add_layouts()
@@ -827,9 +856,14 @@ class Album:
 def main():
 
 	parser = argparse.ArgumentParser(
-		description='Generate a Static Web Photo Gallery for Hugo (http://gohugo.io/)',
+		description='Generate a static photo gallery for Hugo (//gohugo.io/)',
 		prog='hugallery',
 		usage='usage: %(prog)s /You-Album-Path/'
+	)
+	parser.add_argument(
+		'-r', '--reprocess',
+		help='Reprocess photos',
+		action="store_true"
 	)
 	parser.add_argument(
 		'album_dir',
@@ -839,7 +873,7 @@ def main():
 	args = parser.parse_args()
 
 	if args.album_dir:
-		album = Album(args.album_dir)
+		album = Album(args.album_dir, args.reprocess)
 		album.load_config()
 		album.prepare_photos()
 		album.add_resources()
@@ -847,4 +881,10 @@ def main():
 		parser.print_help()
 
 if __name__ == '__main__':
-	main()
+	try:
+		main()
+	except KeyboardInterrupt:
+		ShowMessageAs.error("""
+			Program interrupted, part of the process may have already been done
+		""")
+
