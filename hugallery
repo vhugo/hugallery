@@ -339,7 +339,7 @@ class Album:
 						width = self.max_thumbnail_size
 						height = self.max_thumbnail_size * img.height / img.width
 
-					i.resize( width, height )
+					i.sample( width, height )
 					i.crop(
 						width=self.max_thumbnail_size,
 						height=self.max_thumbnail_size) # Perfect crop ;-)
@@ -361,7 +361,7 @@ class Album:
 						width = self.max_small_size
 						height = self.max_small_size * img.height / img.width
 
-					i.resize( width, height )
+					i.sample( width, height )
 					i.save(filename=filename_small)
 					photo.set_size("{0}x{1}".format(width, height), 'small')
 
@@ -380,7 +380,7 @@ class Album:
 						width = self.max_medium_size
 						height = self.max_medium_size * img.height / img.width
 
-					i.resize( width, height )
+					i.sample( width, height )
 					i.save(filename=filename_medium)
 					photo.set_size("{0}x{1}".format(width, height), 'medium')
 
