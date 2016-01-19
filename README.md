@@ -58,8 +58,7 @@ Your `album.json` should look something like this:
 {
     "album_name": "Your Album Name",
     "hugo_location": "/your/hugo/site/directory/",
-    "max_medium_size": 900,
-    "max_small_size": 600,
+    "max_size": 900,
     "max_thumbnail_size": 164
 }
 ```
@@ -71,14 +70,15 @@ Make sure **hugo_location** has the location of your Hugo site project.
 You can use any spreadsheet editor that supports CSV files to edit
 `photos.csv`, when you first open it should look something like this:
 
-| order | title | description | filename    |
-| ----- |:-----:|:-----------:| -----------:|
-|     0 |       |             | photo01.jpg |
-|     1 |       |             | photo02.jpg |
-|     2 |       |             | photo03.jpg |
-|   ... |       |             |     ...     |
-|    20 |       |             | photo20.jpg |
+| cover | order | title | description | filename    |
+|:----- |:-----:|:-----:|:-----------:| -----------:|
+|  True |     0 |       |             | photo01.jpg |
+|       |     1 |       |             | photo02.jpg |
+|       |     2 |       |             | photo03.jpg |
+|       |   ... |       |             |     ...     |
+|       |    20 |       |             | photo20.jpg |
 
+- `cover`: just type "True" if you want the photo as cover of your album
 - `order`: position the photos is going to be displayed
 - `title`: title for the photo (when the file is created this is shown as empty)
 - `description`: also known as photo caption (when the file is created this is shown as empty)
