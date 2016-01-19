@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from setuptools import setup, find_packages
 
 setup(
@@ -7,8 +9,10 @@ setup(
 	url='http://github.com/vhugo/hugallery',
 	author='Victor Alves',
 	author_email='dev@sub.pro.br',
-	license='MIT',
+	license='MIT License',
 	install_requires=['Wand'],
 	scripts=["hugallery"],
+	test_suite='nose.collector',
+	tests_require=['nose'],
 	zip_safe=False
 )
