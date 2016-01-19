@@ -62,6 +62,7 @@ class Photo:
 	medium_size = ""
 	original_filename = ""
 	original_size = ""
+	cover = False
 
 	def __init__(self, d):
 		for k, v in d.iteritems():
@@ -119,6 +120,7 @@ class Album:
 	max_medium_size = 900
  	photos = []
  	gallery_dataset = ""
+ 	album_cover = None
 
 	def __init__(self, album_dir):
 		self.album_dir = album_dir
@@ -185,21 +187,33 @@ class Album:
 			with open(photos_conf_file,'rU') as csvfile:
 				config = csv.DictReader(csvfile)
 				for p in config:
+
+					# Making sure there's only on cover
+					if p['cover'] and not self.album_cover:
+						self.album_cover = p['filename']
+					else:
+						p['cover'] = ""
+
 					self.photos.append(Photo(p))
 
+				# If no cover was assigned, first image is the cover
+				if not self.album_cover:
+					self.album_cover = self.photos[0].original_filename
+					self.photos[0].cover = True
 				self.photos.sort(key=lambda p: p.order)
 
 		else: # If no config file is found this will create an example one
 
-			photo_prop = ['order', 'title', 'description', 'filename']
+			photo_prop = ['cover','order', 'title', 'description', 'filename']
 
 			with open(photos_conf_file, 'w') as csvfile:
 				writer = csv.DictWriter(csvfile, fieldnames=photo_prop)
 				writer.writeheader()
 
 				photos = self.get_photos_filename()
-				for order, filename in enumerate(photos):
+				for order, filename in enumerate(photos, 1):
 					writer.writerow({
+						'cover': True if order == 1 else '',
 						'order': order,
 						'filename': filename
 					})
@@ -389,7 +403,7 @@ class Album:
 					<div class="content">
 						<div class="page-heading">Gallery</div>
 						<ul>
-						{{ range .Site.Data.gallery }}{{ if eq .order 1 }}<li class="my-gallery-albums"><a href="{{.album_path}}"><img src="gallery/{{.album}}/{{.thumbnail_filename}}" alt="{{.description}}" /><br />{{.album_name}}</a></li>{{ end }}{{ end }}
+						{{ range .Site.Data.gallery }}{{ if .cover }}<li class="my-gallery-albums"><a href="{{.album_path}}"><img src="gallery/{{.album}}/{{.thumbnail_filename}}" alt="{{.description}}" /><br />{{.album_name}}</a></li>{{ end }}{{ end }}
 						</ul>
 					</div>
 				</div>
