@@ -1,4 +1,5 @@
-# Hugallery
+# Hugallery [![Build Status: Linux](https://travis-ci.org/vhugo/hugallery.svg?branch=master)](https://travis-ci.org/vhugo/hugallery)
+
 > A command line script to generate static photo albums with [PhotoSwipe](http://photoswipe.com/) for [Hugo](http://gohugo.io/) sites.
 
 ## Table of Contents
