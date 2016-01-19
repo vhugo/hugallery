@@ -308,17 +308,33 @@ class Album:
 
 			with Image(filename=photo_filename) as img:
 
+				#original
+				if self.copy_original:
+					with img.clone() as i:
+
+						filename_original = os.path.join(
+							self.static_images,
+							"{0}".format(photo.original_filename)
+						)
+
+						i.save(filename=filename_original)
+						photo.set_size("{0}x{1}".format(i.width, i.height), 'original')
+
+				# Fix orientation
 				orientation = img.metadata['exif:Orientation']
 				rotate_coord = {
 					'3': 180,
 					'6': 90,
 					'8': 270
 				}
-
 				if orientation in rotate_coord.keys():
 					img.rotate(rotate_coord[orientation])
 
-				#thumbnail
+				# Remove all metadata from the image, to avoid issue with
+				# image rotation.
+				img.strip()
+
+				# thumbnail
 				with img.clone() as i:
 
 					filename_thumbnail = os.path.join(
@@ -333,10 +349,10 @@ class Album:
 						width = self.max_thumbnail_size
 						height = self.max_thumbnail_size * img.height / img.width
 
-					i.sample( width, height )
+					i.resize( width, height )
 					i.crop(
 						width=self.max_thumbnail_size,
-						height=self.max_thumbnail_size) # Perfect crop ;-)
+						height=self.max_thumbnail_size, gravity="center") # Perfect crop ;-)
 					i.save(filename=filename_thumbnail)
 					photo.set_size("{0}x{1}".format(width, height), 'thumbnail')
 
