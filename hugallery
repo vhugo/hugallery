@@ -776,10 +776,13 @@ def main():
 	)
 	args = parser.parse_args()
 
-	album = Album(args.album_dir)
-	album.load_config()
-	album.prepare_photos()
-	album.add_resources()
+	if args.album_dir:
+		album = Album(args.album_dir)
+		album.load_config()
+		album.prepare_photos()
+		album.add_resources()
+	else:
+		parser.print_help()
 
 if __name__ == '__main__':
 	main()
