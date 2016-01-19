@@ -119,6 +119,7 @@ class Album:
 	max_thumbnail_size = 164
 	max_small_size = 600
 	max_medium_size = 900
+	copy_original = True
  	photos = []
  	gallery_dataset = ""
  	album_cover = None
@@ -163,12 +164,14 @@ class Album:
 
 
 		else: # If no config file is found this will create an example one
+
 			album_conf_template = {
 				'hugo_location': '/your/hugo/site/directory/',
 				'album_name': 'Your Album Name',
 				'max_thumbnail_size': 164,
 				'max_small_size' : 600,
 				'max_medium_size' : 900,
+				'copy_original': True
 			}
 
 			with open(album_conf_file, 'w') as conf:
@@ -344,15 +347,16 @@ class Album:
 					photo.set_size("{0}x{1}".format(width, height), 'medium')
 
 				#original
-				with img.clone() as i:
+				if self.copy_original:
+					with img.clone() as i:
 
-					filename_original = os.path.join(
-						self.static_images,
-						"{0}".format(photo.original_filename)
-					)
+						filename_original = os.path.join(
+							self.static_images,
+							"{0}".format(photo.original_filename)
+						)
 
-					i.save(filename=filename_original)
-					photo.set_size("{0}x{1}".format(i.width, i.height), 'original')
+						i.save(filename=filename_original)
+						photo.set_size("{0}x{1}".format(i.width, i.height), 'original')
 
 			filename_dataset = os.path.join(
 				self.gallery_dataset,
