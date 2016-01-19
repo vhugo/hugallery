@@ -70,17 +70,18 @@ class Photo:
 				self.order = int(v)
 
 			elif k == 'filename':
-				s = re.match('^(.*)(\.(jpe?g|gif|png))$', v)
-				self.original_filename = v
-				self.thumbnail_filename = "{0}-thumb{1}".format(s.group(1),s.group(2))
-				self.small_filename = "{0}-small{1}".format(s.group(1),s.group(2))
-				self.medium_filename = "{0}-medium{1}".format(s.group(1),s.group(2))
+				s = re.match('^(.*)(\.(jpe?g|gif|png))$', v, re.I)
+				if s:
+					self.original_filename = v
+					self.thumbnail_filename = "{0}-thumb{1}".format(s.group(1),s.group(2))
+					self.small_filename = "{0}-small{1}".format(s.group(1),s.group(2))
+					self.medium_filename = "{0}-medium{1}".format(s.group(1),s.group(2))
 
 			else:
 				self.__dict__[k] = v
 
 	def __repr__(self):
-		return repr((self.order, self.filename))
+		return repr((self.order, self.original_filename))
 
 	def set_size(self, measure, label):
 
