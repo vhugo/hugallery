@@ -294,6 +294,16 @@ class Album:
 
 			with Image(filename=photo_filename) as img:
 
+				orientation = img.metadata['exif:Orientation']
+				rotate_coord = {
+					'3': 180,
+					'6': 90,
+					'8': 270
+				}
+
+				if orientation in rotate_coord.keys():
+					img.rotate(rotate_coord[orientation])
+
 				#thumbnail
 				with img.clone() as i:
 
