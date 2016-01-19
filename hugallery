@@ -47,6 +47,19 @@ class ShowMessageAs:
 			dedent(self.clean(m)), self.ENDC, "\n"
 		]))
 
+	@classmethod
+	def note(self, m):
+		sys.stdout.write(''.join([
+			self.OKBLUE, self.BOLD, "N: ", self.ENDC,
+			dedent(self.clean(m)), self.ENDC, "\n"
+		]))
+
+	@classmethod
+	def normal(self, m):
+		sys.stdout.write(''.join([
+			dedent(self.clean(m)), self.ENDC, "\n"
+		]))
+
 class Photo:
 	order = 0
 	title = ""
@@ -122,6 +135,7 @@ class Album:
 	copy_original = True
  	photos = []
  	gallery_dataset = ""
+ 	total_photos_files = 0
  	album_cover = None
 
 	def __init__(self, album_dir, reprocess):
@@ -139,6 +153,10 @@ class Album:
 		for filename in os.listdir(self.album_dir):
 			if re.search("\.(jpe?g|gif|png)$", filename, re.I):
 				photo_list.append(filename)
+
+		self.total_photos_files = len(photo_list)
+		ShowMessageAs.note("{0} image files were found."
+			.format(self.total_photos_files))
 
 		return photo_list
 
@@ -212,6 +230,8 @@ class Album:
 				if not self.album_cover:
 					self.album_cover = self.photos[0].original_filename
 					self.photos[0].cover = True
+
+				self.total_photos_files = len(self.photos)
 				self.photos.sort(key=lambda p: p.order)
 
 		else: # If no config file is found this will create an example one
@@ -281,7 +301,7 @@ class Album:
 				if exc.errno == errno.EEXIST and os.path.isdir(self.gallery_dataset):
 					pass
 
-		for photo in self.photos:
+		for pnum, photo in enumerate(self.photos, 1):
 
 			photo_filename = os.path.join(
 				self.album_dir, "{0}".format(photo.original_filename))
@@ -384,6 +404,12 @@ class Album:
 			# Create dataset files
 			with open(filename_dataset, 'w') as conf:
 				conf.write(photo.get_dataset())
+
+			sys.stdout.write("\r{0} of {1} photos processed"
+				.format(pnum, self.total_photos_files))
+			sys.stdout.flush()
+		sys.stdout.write("\n")
+
 
 	def add_layouts(self):
 		head = '''\
